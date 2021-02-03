@@ -70,16 +70,30 @@ def main():
     if cfg.get('cudnn_benchmark', False):
         torch.backends.cudnn.benchmark = True
 
+    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+
     # work_dir is determined in this priority: CLI > segment in file > filename
     if args.work_dir is not None:
         # update configs according to CLI args if args.work_dir is not None
         cfg.work_dir = args.work_dir
     elif cfg.get('work_dir', None) is None:
         # use config filename as default work_dir if cfg.work_dir is None
-        cfg.work_dir = osp.splitext(args.config)[0] + '.work_dir'
+        cfg.work_dir = f'{osp.splitext(args.config)[0]}.work_dir'
+
+    if cfg.get('work_dir_is_unique', False):
+        cfg.work_dir = f'{cfg.work_dir}.{timestamp}'
+
+    if cfg.get('wandb_work_dir', None) is None:
+        cfg.wandb_work_dir = cfg.work_dir #f'{osp.splitext(args.config)[0]}.wandb_work_dir'
 
     if cfg.experiment_name is None:
         cfg.experiment_name = osp.splitext(osp.basename(args.config))[0]
+
+    if cfg.get('wandb_id_is_experiment_name', False):
+        cfg.wandb_id = cfg.experiment_name
+
+    if cfg.get('resume_from_latest', False):
+        cfg.resume_from = os.path.join(cfg.work_dir, 'latest.pth')
 
     if args.load_from is not None:
         cfg.load_from = args.load_from
@@ -105,7 +119,6 @@ def main():
     # dump config
     cfg.dump(osp.join(cfg.work_dir, osp.basename(args.config)))
     # init the logger before other steps
-    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
     log_file = osp.join(cfg.work_dir, f'{timestamp}.log')
     logger = get_root_logger(log_file=log_file, log_level=cfg.log_level)
 
@@ -128,10 +141,13 @@ def main():
     if args.seed is not None:
         logger.info(f'Set random seed to {args.seed}, deterministic: '
                     f'{args.deterministic}')
-        set_random_seed(args.seed, deterministic=args.deterministic)
-    cfg.seed = args.seed
-    meta['seed'] = args.seed
-    meta['exp_name'] = osp.basename(args.config)
+        cfg.seed = args.seed
+        cfg.deterministic = args.deterministic
+
+    if cfg.get('seed', False):
+        set_random_seed(cfg.seed, deterministic=cfg.deterministic)
+        meta['seed'] = cfg.seed
+        meta['exp_name'] = cfg.experiment_name #osp.basename(args.config)
 
     model = build_segmentor(
         cfg.model,
