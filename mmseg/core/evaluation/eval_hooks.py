@@ -1,4 +1,8 @@
 import os.path as osp
+import cv2
+
+import numpy as np
+import torch
 
 from mmcv.runner import Hook
 from torch.utils.data import DataLoader
@@ -41,12 +45,30 @@ class EvalHook(Hook):
 
     def evaluate(self, runner, results):
         """Call evaluate function of dataset."""
-        eval_res = self.dataloader.dataset.evaluate(
-            results, logger=runner.logger, **self.eval_kwargs)
-        for name, val in eval_res.items():
-            runner.log_buffer.output[name] = val
-        runner.log_buffer.ready = True
+        #eval_res = self.dataloader.dataset.evaluate(
+        #    results, logger=runner.logger, **self.eval_kwargs)
 
+        # for name, val in eval_res.items():
+        #    runner.log_buffer.output[name] = val
+
+        images_to_visualize = []
+        
+        for i in range(len(self.dataloader.dataset)):
+            if i < 12:
+
+                img_info = self.dataloader.dataset.img_infos[i]
+
+                img = cv2.imread(osp.join(self.dataloader.dataset.ann_dir, img_info['ann']['seg_map']))
+                pred = results[i]
+                pred = (pred * 255.).astype(np.uint8)
+                pred = np.repeat(pred.reshape(pred.shape[0], pred.shape[1], 1), 3, axis=2)
+                images = np.stack([img, pred])
+                img_batch = torch.from_numpy(images).permute(0, 3, 1, 2)
+                images_to_visualize.append(img_batch)
+
+        runner.log_buffer.output['images/val'] = images_to_visualize
+
+        runner.log_buffer.ready = True
 
 class DistEvalHook(EvalHook):
     """Distributed evaluation hook.

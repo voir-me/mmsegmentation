@@ -206,8 +206,7 @@ class DefaultFormatBundle(object):
         if 'gt_semantic_seg' in results:
             # convert to long
             results['gt_semantic_seg'] = DC(
-                to_tensor(results['gt_semantic_seg'][None,
-                                                     ...].astype(np.int64)),
+                to_tensor(results['gt_semantic_seg'][None, ...]),
                 stack=True)
         return results
 

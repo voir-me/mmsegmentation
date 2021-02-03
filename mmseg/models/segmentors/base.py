@@ -166,8 +166,13 @@ class BaseSegmentor(nn.Module):
         during val epochs. Note that the evaluation after training epochs is
         not implemented with this method, but an evaluation hook.
         """
-        output = self(**data_batch, **kwargs)
-        return output
+        losses = self(**data_batch, **kwargs)
+        loss, log_vars = self._parse_losses(losses)
+
+        outputs = dict(
+            loss=loss, log_vars=log_vars, num_samples=len(data_batch['img_metas']))
+
+        return outputs
 
     @staticmethod
     def _parse_losses(losses):

@@ -41,6 +41,8 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
             Default: None.
         align_corners (bool): align_corners argument of F.interpolate.
             Default: False.
+        mask_mapping_func (str|None): function for mapping last channel into mask
+            Options: 'sigmoid', 'tahn', None.
     """
 
     def __init__(self,
@@ -60,7 +62,8 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
                      loss_weight=1.0),
                  ignore_index=255,
                  sampler=None,
-                 align_corners=False):
+                 align_corners=False,
+                 mask_mapping_func='sigmoid'):
         super(BaseDecodeHead, self).__init__()
         self._init_inputs(in_channels, in_index, input_transform)
         self.channels = channels
@@ -77,6 +80,15 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
             self.sampler = build_pixel_sampler(sampler, context=self)
         else:
             self.sampler = None
+
+        if mask_mapping_func == 'sigmoid':
+            self.mask_map = nn.Sigmoid()
+        elif mask_mapping_func == 'tahn':
+            def mask_map_tahn(x):
+                return (nn.tanh(x) + 1.0) / 2.0
+            self.mask_map = mask_map_tahn
+        else:
+            self.mask_map = None
 
         self.conv_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
         if dropout_ratio > 0:
@@ -209,6 +221,8 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
         if self.dropout is not None:
             feat = self.dropout(feat)
         output = self.conv_seg(feat)
+        if self.mask_map:
+            output = self.mask_map(output)
         return output
 
     @force_fp32(apply_to=('seg_logit', ))
@@ -224,11 +238,16 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
             seg_weight = self.sampler.sample(seg_logit, seg_label)
         else:
             seg_weight = None
-        seg_label = seg_label.squeeze(1)
+
+        # disabled for softlight task (pixel-wise regression instead of classification)
+        #seg_label = seg_label.squeeze(1)
+
         loss['loss_seg'] = self.loss_decode(
             seg_logit,
             seg_label,
             weight=seg_weight,
             ignore_index=self.ignore_index)
-        loss['acc_seg'] = accuracy(seg_logit, seg_label)
+
+        # disabled for softlight setup
+        #loss['acc_seg'] = accuracy(seg_logit, seg_label)
         return loss
