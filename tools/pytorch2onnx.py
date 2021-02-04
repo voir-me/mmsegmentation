@@ -49,8 +49,9 @@ def _demo_mm_inputs(input_shape, num_classes):
     (N, C, H, W) = input_shape
     rng = np.random.RandomState(0)
     imgs = rng.rand(*input_shape)
+    high = 1 if num_classes ==1 else num_classes - 1
     segs = rng.randint(
-        low=0, high=num_classes - 1, size=(N, 1, H, W)).astype(np.uint8)
+        low=0, high=high, size=(N, 1, H, W)).astype(np.uint8)
     img_metas = [{
         'img_shape': (H, W, C),
         'ori_shape': (H, W, C),
