@@ -61,7 +61,7 @@ class EvalHook(Hook):
                 img = cv2.imread(osp.join(self.dataloader.dataset.ann_dir, img_info['ann']['seg_map']))
                 pred = results[i]
                 pred = (pred * 255.).astype(np.uint8)
-                pred = np.repeat(pred.reshape(pred.shape[0], pred.shape[1], 1), 3, axis=2)
+                pred = np.repeat(pred.reshape(pred.shape[1], pred.shape[2], 1), 3, axis=2)
                 images = np.stack([img, pred])
                 img_batch = torch.from_numpy(images).permute(0, 3, 1, 2)
                 images_to_visualize.append(img_batch)
