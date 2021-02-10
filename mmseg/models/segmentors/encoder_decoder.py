@@ -133,6 +133,17 @@ class EncoderDecoder(BaseSegmentor):
 
         return seg_logit
 
+    def forward_simple(self, img):
+        """Forward with standart semantic (for JIT)"""
+        x = self.extract_feat(img)
+        out = self.decode_head(x)
+        out = resize(
+            input=out,
+            size=img.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        return out
+
     def forward_train(self, img, img_metas, gt_semantic_seg):
         """Forward function for training.
 
