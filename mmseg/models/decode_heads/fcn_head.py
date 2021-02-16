@@ -42,7 +42,7 @@ class FCNHead(BaseDecodeHead):
                 conv_cfg=self.conv_cfg,
                 norm_cfg=self.norm_cfg,
                 act_cfg=self.act_cfg))
-        for i in range(num_convs - 1):
+        for _ in range(num_convs - 1):
             convs.append(
                 ConvModule(
                     self.channels,

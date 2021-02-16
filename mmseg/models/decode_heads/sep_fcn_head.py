@@ -1,11 +1,12 @@
-from mmcv.cnn import DepthwiseSeparableConvModule
-
+import torch
+from torch import nn
+from mmcv.cnn import DepthwiseSeparableConvModule, ConvModule
 from ..builder import HEADS
-from .fcn_head import FCNHead
+from .fcn_head import BaseDecodeHead
 
 
 @HEADS.register_module()
-class DepthwiseSeparableFCNHead(FCNHead):
+class DepthwiseSeparableFCNHead(BaseDecodeHead):
     """Depthwise-Separable Fully Convolutional Network for Semantic
     Segmentation.
 
@@ -26,26 +27,50 @@ class DepthwiseSeparableFCNHead(FCNHead):
             relevant additional options.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 num_convs=2,
+                 kernel_size=3,
+                 concat_input=True,
+                 **kwargs):
+        assert num_convs >= 0
+        self.num_convs = num_convs
+        self.concat_input = concat_input
+        self.kernel_size = kernel_size
         super(DepthwiseSeparableFCNHead, self).__init__(**kwargs)
-        self.convs[0] = DepthwiseSeparableConvModule(
-            self.in_channels,
-            self.channels,
-            kernel_size=self.kernel_size,
-            padding=self.kernel_size // 2,
-            norm_cfg=self.norm_cfg)
-        for i in range(1, self.num_convs):
-            self.convs[i] = DepthwiseSeparableConvModule(
-                self.channels,
-                self.channels,
-                kernel_size=self.kernel_size,
-                padding=self.kernel_size // 2,
-                norm_cfg=self.norm_cfg)
+
+        if num_convs == 0:
+            assert self.in_channels == self.channels
+            self.convs = nn.Identity()
+        else:
+            convs = [DepthwiseSeparableConvModule(
+                        self.in_channels,
+                        self.channels,
+                        kernel_size=kernel_size,
+                        padding=kernel_size // 2,
+                        norm_cfg=self.norm_cfg)]
+            convs += [DepthwiseSeparableConvModule(
+                        self.channels,
+                        self.channels,
+                        kernel_size=kernel_size,
+                        padding=kernel_size // 2,
+                        norm_cfg=self.norm_cfg)
+                for _ in range(num_convs - 1)]
+            self.convs = nn.Sequential(*convs)
 
         if self.concat_input:
             self.conv_cat = DepthwiseSeparableConvModule(
                 self.in_channels + self.channels,
                 self.channels,
-                kernel_size=self.kernel_size,
-                padding=self.kernel_size // 2,
+                kernel_size=kernel_size,
+                padding=kernel_size // 2,
                 norm_cfg=self.norm_cfg)
+
+
+    def forward(self, inputs):
+        """Forward function."""
+        x = self._transform_inputs(inputs)
+        output = self.convs(x)
+        if self.concat_input:
+            output = self.conv_cat(torch.cat([x, output], dim=1))
+        output = self.cls_seg(output)
+        return output
