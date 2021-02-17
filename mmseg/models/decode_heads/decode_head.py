@@ -60,6 +60,7 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
                      type='CrossEntropyLoss',
                      use_sigmoid=False,
                      loss_weight=1.0),
+                 perceptual_loss=None,
                  ignore_index=255,
                  sampler=None,
                  align_corners=False,
@@ -74,6 +75,7 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
         self.act_cfg = act_cfg
         self.in_index = in_index
         self.loss_decode = build_loss(loss_decode)
+        self.perceptual_loss = build_loss(perceptual_loss) if perceptual_loss else None
         self.ignore_index = ignore_index
         self.align_corners = align_corners
         if sampler is not None:
@@ -84,8 +86,9 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
         if mask_mapping_func == 'sigmoid':
             self.mask_map = nn.Sigmoid()
         elif mask_mapping_func == 'tahn':
+            self.tahn = nn.Tanh()
             def mask_map_tahn(x):
-                return (nn.tanh(x) + 1.0) / 2.0
+                return (self.tahn(x) + 1.0) / 2.0
             self.mask_map = mask_map_tahn
         else:
             self.mask_map = None
@@ -247,6 +250,14 @@ class BaseDecodeHead(nn.Module, metaclass=ABCMeta):
             seg_label,
             weight=seg_weight,
             ignore_index=self.ignore_index)
+
+        if self.perceptual_loss:
+            loss_percep, loss_style = self.perceptual_loss(
+                seg_logit, seg_label)
+            if loss_percep is not None:
+                loss['loss_perceptual'] = loss_percep
+            if loss_style is not None:
+                loss['loss_style'] = loss_style
 
         # disabled for softlight setup
         #loss['acc_seg'] = accuracy(seg_logit, seg_label)

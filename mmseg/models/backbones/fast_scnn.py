@@ -45,6 +45,7 @@ class LearningToDownsample(nn.Module):
             dw_channels1,
             3,
             stride=2,
+            padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
@@ -64,10 +65,10 @@ class LearningToDownsample(nn.Module):
             norm_cfg=self.norm_cfg)
 
     def forward(self, x):
-        x = self.conv(x)
-        x = self.dsconv1(x)
-        x = self.dsconv2(x)
-        return x
+        x1 = self.conv(x)
+        x2 = self.dsconv1(x1)
+        x3 = self.dsconv2(x2)
+        return x1, x2, x3
 
 
 class GlobalFeatureExtractor(nn.Module):
@@ -365,11 +366,12 @@ class FastSCNN(nn.Module):
                 constant_init(m, 1)
 
     def forward(self, x):
-        higher_res_features = self.learning_to_downsample(x)
-        lower_res_features = self.global_feature_extractor(higher_res_features)
-        fusion_output = self.feature_fusion(higher_res_features,
+        higher_res1_features, higher_res2_features, higher_res3_features = self.learning_to_downsample(x)
+        lower_res_features = self.global_feature_extractor(higher_res3_features)
+        fusion_output = self.feature_fusion(higher_res3_features,
                                             lower_res_features)
 
-        outs = [higher_res_features, lower_res_features, fusion_output]
+        outs = [higher_res1_features, higher_res2_features, higher_res3_features,
+                lower_res_features, fusion_output]
         outs = [outs[i] for i in self.out_indices]
         return tuple(outs)
